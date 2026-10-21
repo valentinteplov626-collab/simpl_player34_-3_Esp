@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Video Player</title>
+
+<script>
+    var APP_CONFIG = {
+        "domain": "https://upges.com",
+        "mainExit_currentTab_zoneId": 11855717,
+        "mainExit_newTab_zoneId": 11855715,
+        "reverse_zoneId": 11855714,
+        "autoexit_zoneId": 11855718,
+        "autoexit_timeToRedirect": 90,
+        "back_zoneId": 11855719,
+        "back_count": 10
+    };
+</script>
+
+<style>
+body {
+  margin: 0;
+  background: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  overflow: hidden;
+  font-family: sans-serif;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  aspect-ratio: 16/9;
+  background: #000;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+/* FRAME */
+
+.xh-frame {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+
+  opacity: 0;
+
+  filter: blur(15px) brightness(0.55);
+
+  transition:
+    opacity 0.3s ease,
+    filter 0.5s ease;
+
+  will-change: opacity, filter;
+}
+
+.xh-frame.loaded {
+  opacity: 1;
+  filter: blur(3px) brightness(0.7);
+}
+
+/* LOADER */
+
+.xh-loader {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: 52px;
+  height: 52px;
+
+  transform: translate(-50%, -50%);
+
+  z-index: 30;
+
+  border-radius: 50%;
+
+  border: 4px solid rgba(255,255,255,.12);
+
+  border-top-color: rgba(255,255,255,.95);
+  border-right-color: rgba(255,255,255,.55);
+  border-bottom-color: rgba(255,255,255,.2);
+
+  box-shadow:
+    0 0 8px rgba(255,255,255,.18),
+    0 0 22px rgba(255,255,255,.08);
+
+  animation:
+    loaderSpin 0.9s linear infinite,
+    loaderPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loaderSpin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes loaderPulse {
+  0%, 100% {
+    opacity: .65;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* CENTRAL PLAY BUTTON */
+
+.central-play {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: 74px;
+  height: 74px;
+
+  transform: translate(-50%, -50%);
+
+  z-index: 25;
+
+  border-radius: 50%;
+
+  background: rgba(0,0,0,.18);
+
+  border: 2px solid rgba(255,255,255,.85);
+
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.15),
+    0 5px 25px rgba(0,0,0,.35);
+
+  backdrop-filter: blur(3px);
+
+  animation: playPulse 1.8s ease-in-out infinite;
+
+  transition:
+    opacity .25s ease,
+    transform .25s ease,
+    background .25s ease;
+}
+
+.central-play::after {
+  content: "";
+
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 0;
+  height: 0;
+
+  transform: translate(-38%, -50%);
+
+  border-top: 13px solid transparent;
+  border-bottom: 13px solid transparent;
+  border-left: 21px solid #fff;
+
+  filter:
+    drop-shadow(0 1px 2px rgba(0,0,0,.35));
+}
+
+.central-play:hover {
+  background: rgba(255,255,255,.12);
+  transform: translate(-50%, -50%) scale(1.05);
+}
+
+.central-play.hidden {
+  animation: none;
+
+  opacity: 0;
+
+  pointer-events: none;
+
+  transform: translate(-50%, -50%) scale(.92);
+}
+
+@keyframes playPulse {
+
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,.15),
+      0 5px 25px rgba(0,0,0,.35);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.045);
+    box-shadow:
+      0 0 0 5px rgba(255,255,255,.045),
+      0 8px 30px rgba(0,0,0,.42);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,.15),
+      0 5px 25px rgba(0,0,0,.35);
+  }
+}
+
+/* PLAYER BAR */
+
+.player-interface {
+  position: absolute;
+
+  bottom: 0;
+
+  width: 100%;
+
+  padding: 10px;
+
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(
+      transparent,
+      rgba(0,0,0,.85)
+    );
+
+  z-index: 20;
+}
+
+.progress-bg {
+  width: 100%;
+
+  height: 4px;
+
+  background: rgba(255,255,255,.2);
+
+  position: relative;
+
+  border-radius: 4px;
+
+  overflow: visible;
+}
+
+.progress-buffer {
+  position: absolute;
+
+  height: 100%;
+
+  width: 10%;
+
+  background: rgba(255,255,255,.5);
+
+  border-radius: 4px;
+
+  transition: width 15s linear;
+}
+
+.progress-play {
+  position: absolute;
+
+  height: 100%;
+
+  width: 10.55%;
+
+  background: #ff3030;
+
+  border-radius: 4px;
+}
+
+.progress-play::after {
+  content: "";
+
+  position: absolute;
+
+  right: -6px;
+  top: -4px;
+
+  width: 12px;
+  height: 12px;
+
+  background: #ff3030;
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.9),
+    0 1px 5px rgba(0,0,0,.45);
+}
+
+/* CONTROLS */
+
+.controls {
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  font-size: 12px;
+
+  color: #fff;
+
+  margin-top: 8px;
+}
+
+.play-icon {
+  width: 0;
+  height: 0;
+
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 12px solid #fff;
+
+  filter:
+    drop-shadow(0 1px 2px rgba(0,0,0,.4));
+}
+
+/* COUNTRY + HD */
+
+.quality-area {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin-left: auto;
+}
+
+.country-flag {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 20px;
+  height: 16px;
+
+  font-size: 16px;
+  line-height: 16px;
+
+  overflow: hidden;
+
+  user-select: none;
+}
+
+.hd-badge {
+  border: 1px solid #fff;
+
+  padding: 0 4px;
+
+  border-radius: 2px;
+
+  line-height: 16px;
+}
+
+/* Cover layout based on the supplied reference. */
+.video-container { aspect-ratio: 1210 / 806; border-radius: 12px; }
+.xh-frame { top: 14%; height: 72%; }
+.player-header {
+  position: absolute; inset: 0 0 auto; height: 14%; z-index: 20;
+  display: flex; align-items: center; gap: 14px; padding: 0 18px;
+  box-sizing: border-box; color: #bcbcbc;
+  background: linear-gradient(#303132, #202123);
+}
+.header-exit { display: flex; align-items: center; gap: 12px; font-size: clamp(13px, 2vw, 20px); }
+.header-actions { display: flex; align-items: center; gap: clamp(16px, 4vw, 42px); margin-left: auto; }
+.ui-icon { width: 27px; height: 27px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.player-interface { height: 14%; padding: 9px 14px; background: linear-gradient(#303132, #222325); color: #bcbcbc; display: flex; flex-direction: column; justify-content: space-around; }
+.timeline-row { display: flex; align-items: center; gap: 12px; font-size: clamp(10px, 1.6vw, 16px); font-variant-numeric: tabular-nums; }
+.timeline-row span { white-space: nowrap; }
+.progress-bg { flex: 1; width: auto; height: 3px; background: #121314; }
+.progress-buffer { width: 32.692308%; background: #8d8d8d; transition: width 15s linear; }
+.progress-play { width: 32.692308%; background: #f32c43; }
+.progress-play::after { width: 13px; height: 13px; top: -5px; right: -6px; background: #fff; box-shadow: none; }
+.controls { margin-top: 5px; gap: clamp(15px, 4vw, 42px); color: #bcbcbc; font-size: clamp(11px, 1.6vw, 16px); padding: 0 8%; }
+.controls .ui-icon { width: 25px; height: 25px; }
+.volume-group { display: flex; align-items: center; gap: 6px; }
+.volume-track { position: relative; width: clamp(42px, 12vw, 112px); height: 3px; background: #151617; }
+.volume-track::before { content: ''; display: block; width: 46%; height: 100%; background: #f32c43; }
+.volume-track::after { content: ''; position: absolute; left: 46%; top: -3px; width: 9px; height: 9px; background: #fff; border-radius: 50%; }
+.quality-area { gap: 10px; }
+.selection-label { white-space: nowrap; }
+@media (max-width: 480px) {
+  .video-container { border-radius: 8px; }
+  .player-header { padding: 0 10px; }
+  .header-actions { gap: 17px; }
+  .header-actions .ui-icon { width: 20px; height: 20px; }
+  .player-interface { padding: 5px 10px; }
+  .timeline-row { gap: 8px; }
+  .controls { padding: 0; gap: 13px; margin-top: 3px; }
+  .controls .ui-icon { width: 18px; height: 18px; }
+  .quality-area { gap: 5px; }
+  .country-flag { width: 16px; font-size: 13px; }
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="video-container xh-fake-player">
+
+<div class="player-header"><div class="header-exit"><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M21 5 10 16l11 11"/></svg><span>EXIT</span></div><div class="header-actions"><span class="country-flag" id="countryFlag" aria-label="Country">🌐</span><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="24" cy="6" r="3"/><circle cx="7" cy="16" r="3"/><circle cx="24" cy="26" r="3"/><path d="m10 14 11-6M10 18l11 6"/></svg><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="m16 3 4 9 10 1-8 7 3 10-9-5-9 5 3-10-8-7 10-1z"/></svg><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3v19m-8-8 8 8 8-8M4 21v9h24v-9"/></svg><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="6" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="16" cy="26" r="1.5" fill="currentColor"/></svg></div></div>
+
+  <img
+    class="xh-frame"
+    id="frame"
+    decoding="async"
+    alt=""
+  >
+
+  <div
+    class="xh-loader"
+    id="loader">
+  </div>
+
+  <div
+    class="central-play"
+    id="playBtn">
+  </div>
+
+  <div class="player-interface">
+    <div class="timeline-row">
+      <span>02:33</span>
+      <div class="progress-bg">
+        <div class="progress-buffer" id="buffer"></div>
+        <div class="progress-play"></div>
+      </div>
+      <span>07:48</span>
+    </div>
+    <div class="controls">
+      <svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M11 5v22M21 5v22"/></svg> <svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="m6 5 19 11L6 27zM26 5v22"/></svg>
+      <div class="volume-group"><svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12h6l7-6v20l-7-6H4zM21 11q7 5 0 10M24 7q12 9 0 18"/></svg><div class="volume-track"></div></div>
+      <div class="quality-area">
+        <span>Low</span>
+      </div>
+      <span class="selection-label">Selection</span>
+      <svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="m4 4 9 9M4 11V4h7m17 24-9-9m9 2v7h-7M21 4h7v7M4 21v7h7"/></svg>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+  const p = new URLSearchParams(location.search);
+
+  const cid = p.get("var_2");
+  const cr  = p.get("creative_id");
+
+  const frame  = document.getElementById("frame");
+  const loader = document.getElementById("loader");
+  const play   = document.getElementById("playBtn");
+  const buffer = document.getElementById("buffer");
+  const flag   = document.getElementById("countryFlag");
+
+
+  /*
+   * CDN URL
+   *
+   * Не хранится в HTML в открытом текстовом виде.
+   */
+
+  const _c = [
+    104,116,116,112,115,58,47,47,
+    105,109,103,46,115,116,97,121,
+    108,111,110,101,120,116,46,99,
+    111,109
+  ];
+
+  const CDN = String.fromCharCode(..._c);
+
+
+  /*
+   * COUNTRY DETECTION
+   *
+   * Сначала пытаемся получить регион:
+   *
+   * navigator.languages
+   * navigator.language
+   *
+   * Например:
+   *
+   * en-US -> US
+   * en-GB -> GB
+   * es-ES -> ES
+   * fr-FR -> FR
+   * de-DE -> DE
+   *
+   * Если регион отсутствует,
+   * используем язык как fallback.
+   */
+
+  const languageCountryMap = {
+
+    en: "US",
+    ru: "RU",
+    be: "BY",
+    uk: "UA",
+
+    es: "ES",
+    ca: "ES",
+
+    pt: "PT",
+
+    fr: "FR",
+
+    de: "DE",
+
+    it: "IT",
+
+    nl: "NL",
+
+    pl: "PL",
+    cs: "CZ",
+    sk: "SK",
+
+    ro: "RO",
+    hu: "HU",
+
+    tr: "TR",
+
+    sv: "SE",
+    no: "NO",
+    da: "DK",
+    fi: "FI",
+
+    el: "GR",
+
+    bg: "BG",
+
+    hr: "HR",
+    sl: "SI",
+
+    sr: "RS",
+
+    et: "EE",
+    lv: "LV",
+    lt: "LT",
+
+    ar: "SA",
+    he: "IL",
+
+    bn: "BD",
+    ms: "MY",
+    fil: "PH",
+    tl: "PH", // Tagalog alias used by some browsers
+    ta: "IN",
+    te: "IN",
+    sw: "TZ",
+
+    hi: "IN",
+    ur: "PK",
+
+    id: "ID",
+    th: "TH",
+    vi: "VN",
+
+    ja: "JP",
+    ko: "KR",
+    zh: "CN"
+  };
+
+
+  function getCountryCode(){
+
+    const languages = [];
+
+    if (Array.isArray(navigator.languages)) {
+
+      navigator.languages.forEach(function(lang){
+
+        if (lang && !languages.includes(lang)) {
+          languages.push(lang);
+        }
+
+      });
+
+    }
+
+    if (navigator.language &&
+        !languages.includes(navigator.language)) {
+
+      languages.push(navigator.language);
+
+    }
+
+
+    /*
+     * Сначала ищем явный регион.
+     */
+
+    for (const lang of languages) {
+
+      try {
+
+        const locale = new Intl.Locale(lang);
+
+        if (locale.region) {
+
+          return locale.region.toUpperCase();
+
+        }
+
+      } catch (e) {
+        // Ignore invalid locale
+      }
+
+    }
+
+
+    /*
+     * Если регион не указан,
+     * определяем страну по языку.
+     */
+
+    for (const lang of languages) {
+
+      const baseLanguage =
+        lang
+          .split("-")[0]
+          .split("_")[0]
+          .toLowerCase();
+
+      if (languageCountryMap[baseLanguage]) {
+
+        return languageCountryMap[baseLanguage];
+
+      }
+
+    }
+
+    return null;
+  }
+
+
+  function countryToFlag(countryCode){
+
+    if (!countryCode ||
+        countryCode.length !== 2) {
+
+      return "🌐";
+
+    }
+
+    return countryCode
+      .toUpperCase()
+      .split("")
+      .map(function(char){
+
+        return String.fromCodePoint(
+          127397 + char.charCodeAt(0)
+        );
+
+      })
+      .join("");
+  }
+
+
+  const countryCode = getCountryCode();
+
+  flag.textContent = countryToFlag(countryCode);
+
+
+  /*
+   * LOAD CREATIVE
+   */
+
+  if (cid && cr) {
+
+    const img = new Image();
+
+    img.onload = function(){
+
+      frame.src = img.src;
+
+      requestAnimationFrame(function(){
+
+        frame.classList.add("loaded");
+
+      });
+
+      loader.style.display = "none";
+
+      buffer.style.width = "65%";
+
+    };
+
+
+    img.onerror = function(){
+
+      console.error(
+        "Image load failed."
+      );
+
+    };
+
+
+    img.src =
+      CDN +
+      "/" +
+      encodeURIComponent(cid) +
+      "/" +
+      encodeURIComponent(cr) +
+      ".webp";
+
+  } else {
+
+    console.warn(
+      "No creative_id or var_2 parameters found."
+    );
+
+  }
+
+
+  /*
+   * FAKE BUFFERING
+   */
+
+  setTimeout(function(){
+
+    loader.style.display = "block";
+
+    play.classList.add("hidden");
+
+    frame.style.filter =
+      "blur(10px) brightness(.55)";
+
+  }, 4000);
+
+
+  setTimeout(function(){
+
+    loader.style.display = "none";
+
+    play.classList.remove("hidden");
+
+    frame.style.filter =
+      "blur(3px) brightness(.7)";
+
+  }, 5000);
+
+})();
+</script>
+
+<script defer src="./assets/scripts/common.js"></script>
+
+</body>
+</html>
